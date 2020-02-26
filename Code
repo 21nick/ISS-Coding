@@ -1,0 +1,105 @@
+
+import requests 
+import json 
+import pymongo
+import pprint
+import time
+import sys
+from pymongo import MongoClient
+
+from datetime import datetime
+
+# Collection definition
+client = MongoClient()
+db = client['ISS_LocationD']
+collection = db['A']
+
+
+
+
+def inputData(delay, numberTimes):
+    
+    for a in range(numberTimes):
+        #Collect data from APIs
+        apiIss = 'http://api.open-notify.org/iss-now.json'
+
+        apiIssText = requests.get(apiIss)
+        apiIssText = apiIssText.json()
+
+        issLon = apiIssText['iss_position']['longitude']
+        issLat = apiIssText['iss_position']['latitude']
+
+        apiPlace = "https://api.opencagedata.com/geocode/v1/json?q= " + issLat + "%2C" + issLon + "&key=7ff597a04bff4bd9addc906660f325c7&pretty=1"
+
+
+        apiPlaceText = requests.get(apiPlace)
+        apiPlaceText = apiPlaceText.json()
+
+
+        #
+        try:
+            closestCountry = apiPlaceText['results'][0]['components']['country']
+
+        except:
+            closestCountry = "Over Ocean"
+
+
+        ts = int(apiIssText['timestamp'])
+
+        currentTime = datetime.utcfromtimestamp(ts).strftime('%Y-%m-%d %H:%M:%S')
+
+        collection.insert_one({"Time": currentTime, "Location": closestCountry, "Latitude": issLat, "Longitude": issLon, "Who": "Aaron"})
+
+        time.sleep(delay)
+
+
+def start():
+    q1 = input("View/Update/Clear")
+    if q1.lower() == "view":
+        for data in collection.find():
+            pprint.pprint(data)
+        q3 = input("Search Country?:")
+        if q3.lower() == 'no':
+            start()
+        else:
+            print("________________________________________________")
+            print("")
+            for data in collection.find({"Location":q3}):
+                pprint.pprint(data)
+        
+    if q1.lower() == "update":
+        delayTime = input("Delay:")
+        limit = input("Limit:")
+        inputData(int(delayTime), int(limit))
+        print("____________________________________________________")
+        time.sleep(1)
+        print("DONE\n")
+        time.sleep(1)
+        for data in collection.find():
+            pprint.pprint(data)
+    
+    if q1.lower() == "clear":
+        deleteQ = input("Are you sure you want to delete " + str(collection.count_documents({})) + " records?")
+        if deleteQ.lower() == 'yes':
+            collection.delete_many({})
+        else:
+            start()
+        
+    q2 = input("Again?: ")
+    if q2.lower() == 'yes':
+        start()
+    else:
+        print("____________________________________________________\n")
+        print ("Thank you for using this site")
+        print("")
+        importantQ = input("Did you find this website useful? (yes/no)")
+        if importantQ.lower() == 'yes':
+            sys.exit("Thank you!")
+        print("")
+        print ("We will try to improve it")
+        sys.exit("The End")
+   
+        
+
+start()
+
